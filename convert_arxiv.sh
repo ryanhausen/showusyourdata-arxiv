@@ -1,12 +1,12 @@
 #!/bin/bash
 
-echo "arxiv -> Show US Your Data Tool"
+echo "arxiv -> Show US Your Data"
 
 python arxiv_helper.py $1
 
 texfiles=($(ls $1/*.tex))
 
-# https://www.tutorialkart.com/bash-shell-scripting/bash-array-length/#:~:text=To%20get%20length%20of%20an%20array%20in%20Bash%2C,returns%20the%20number%20of%20elements%20in%20the%20array.
+# https://www.tutorialkart.com/bash-shell-scripting/bash-array-length
 len=${#texfiles[@]}
 
 if [ $len == 1 ]; then
@@ -36,6 +36,6 @@ python parse_file.py  "$1/$1.xml"
 
 echo "Classifying with Show Us Your Data classifier"
 
-
+# TODO: continue here once we have the show us your data model
 
 
