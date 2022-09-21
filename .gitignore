@@ -1,3 +1,7 @@
+# added by Ryan
+kaggle_data/*
+!kaggle_data/README.md
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
