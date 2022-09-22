@@ -132,7 +132,7 @@ class Model3(Model):
             MapFilter_IntroSSAI(Model3.MODEL_KEYWORDS, Model3.TOKENIZE_PAT),
             MapFilter_IntroWords(),
             MapFilter_BRLessThanTwoWords(Model3.BR_PAT, Model3.TOKENIZE_PAT),
-            MapFilter_PartialMatchDatasets(ssai_par_datasets),
+            MapFilter_PartialMatchDatasets(ssai_par_datasets, Model3.BR_PAT),
             MapFilter_TrainCounts(
                 texts,
                 ssai_par_datasets,
@@ -364,7 +364,7 @@ class MapFilter_IntroWords(MapFilter):
 class MapFilter_BRLessThanTwoWords(MapFilter):
     def __init__(self, br_pat, tokenize_pat):
 
-        filter_f = lambda ds: len(tokenize_pat.find_alll(br_pat.sub("", ds))) > 2
+        filter_f = lambda ds: len(tokenize_pat.findall(br_pat.sub("", ds))) > 2
 
         super().__init__(filter_f=filter_f)
 
@@ -404,7 +404,7 @@ class MapFilter_TrainCounts(MapFilter):
         # (check the formula in the first cell)
         tr_counts, data_counts = MapFilter_TrainCounts.get_train_predictions_counts_data(
             texts,
-            MapFilter_TrainCounts.extend_parentehis(
+            MapFilter_TrainCounts.extend_paranthesis(
                 set(datasets)
             ),
             index,
