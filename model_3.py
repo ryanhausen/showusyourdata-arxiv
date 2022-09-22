@@ -3,15 +3,15 @@
 # TODO: It looks like this model uses the training data to build up a corpus
 #       of words for pattern matching. We need to build this once and save it.
 #       The code should also be refactored for our use.
-
-
 from collections import defaultdict
 import os
 import json
 import re
+import sys
 from itertools import chain
 from functools import partial
-from typing import Callable, Iterable, List
+from typing import Callable, Counter, Dict, Iterable, List
+from urllib.request import AbstractBasicAuthHandler
 
 from model import Model
 
@@ -73,8 +73,44 @@ class Model3(Model):
 
     DOWNLOAD_ERROR_MESSAGE = "The model needs the kaggle data to initialize its paramters. Please see kaggle_data/README.txt."
 
-    def __init__(self):
+    def __init__(self,):
         self.init_params()
+
+    @staticmethod
+    def get_parenthesis(t, ds):
+        # Get abbreviations in the brackets if there are any
+        cur_abbrs = re.findall(re.escape(ds) + '\s?(\([^\)]+\)|\[[^\]]+\])', t)
+        cur_abbrs = [abbr.strip('()[]').strip() for abbr in cur_abbrs]
+        cur_abbrs = [re.split('[\(\[]', abbr)[0].strip() for abbr in cur_abbrs]
+        cur_abbrs = [re.split('[;,]', abbr)[0].strip() for abbr in cur_abbrs]
+        cur_abbrs = [a for a in cur_abbrs if not any(ch in a for ch in '[]()')]
+        cur_abbrs = [a for a in cur_abbrs if re.findall('[A-Z][A-Z]', a)]
+        cur_abbrs = [a for a in cur_abbrs if len(a) > 2]
+        cur_abbrs = [a for a in cur_abbrs if not any(tok.islower() for tok in Model3.TOKENIZE_PAT.findall(a))]
+        fabbrs = []
+        for abbr in cur_abbrs:
+            if not (sum(bool(re.findall('[A-Z][a-z]+', tok)) for tok in Model3.TOKENIZE_PAT.findall(abbr)) > 2):
+                fabbrs.append(abbr)
+        return fabbrs
+
+
+    def predict(self, text: Dict[str, str]) -> List[str]:
+
+        predictions = []
+
+        for sec in text:
+            section_text = sec["text"]
+            current_preds = []
+            for paragraph in section_text.split("\n"):
+                for sent in re.split("[\.]", paragraph):
+                    for ds in self.datasets:
+                        if ds in sent:
+                            predictions.append(ds)
+                            predictions.extend(Model3.get_paranthesis(sent, ds))
+
+        return predictions
+
+
 
     def init_params(self) -> None:
 
@@ -85,31 +121,40 @@ class Model3(Model):
 
     def __generate_params(self) -> None:
 
-        filter_stopwords_par_data = partial(
-            Model3.__filter_stopwords, stopwords=Model3.STOPWORDS_PAR
-        )
-
-        texts = self.__get_raw_data()
+        texts, train_labels = self.__get_raw_data()
         ssai_par_datasets = Model3.__tokenized_extract(texts, Model3.MODEL_KEYWORDS)
         words = list(chain(*[Model3.__tokenize(ds) for ds in ssai_par_datasets]))
-        texts_index = Model3.__get_index(texts, words)
-        filter_by_train_counts_filled = partial(
-            Model3.__filter_by_train_counts,
-            index=texts_index,
-            kw="data",
-            min_train_count=2,
-            eq_threshold=0.1,
-        )
 
-        filters = [
-            filter_and_the,
-            filter_stopwords_par_data,
-            filter_intro_ssai,
-            filler_intro_words,
-            filter_br_less_than_two_words,
-            filter_parial_match_datasets,
-            filter_by_train_counts_filled,
+        mapfilters = [
+            MapFilter_AndThe(),
+            MapFilter_StopWords(Model3.STOPWORDS_PAR),
+            MapFilter_IntroSSAI(Model3.MODEL_KEYWORDS, Model3.TOKENIZE_PAT),
+            MapFilter_IntroWords(),
+            MapFilter_BRLessThanTwoWords(Model3.BR_PAT, Model3.TOKENIZE_PAT),
+            MapFilter_PartialMatchDatasets(ssai_par_datasets),
+            MapFilter_TrainCounts(
+                texts,
+                ssai_par_datasets,
+                Model3.__get_index(texts, words),
+                "data",
+                2,
+                0.1,
+                Model3.TOKENIZE_PAT,
+            ),
+            MapFilter_BRPatSub(Model3.BR_PAT),
         ]
+
+        for f in mapfilters:
+            ssai_par_datasets = f(ssai_par_datasets)
+
+        train_labels_set = set(chain(*train_labels))
+        # This line is in the original notebook, but doesn't seem to do anything
+        #train_datasets = [ds for ds in train_labels_set if sum(ch.islower() for ch in ds) > 0 ]
+        train_datasets = [Model3.BR_PAT.sub('', ds).strip() for ds in train_labels_set]
+        datasets = set(ssai_par_datasets) | set(train_datasets)
+
+        self.datasets = datasets
+
 
     @staticmethod
     def __get_index(texts, words):
@@ -189,18 +234,6 @@ class Model3(Model):
 
         return datasets
 
-    @staticmethod
-    def __filter_stopwords(datasets, stopwords, do_lower=True) -> None:
-        # Remove all instances that contain any stopword as a substring
-        filtered_datasets = []
-        if do_lower:
-            stopwords = [sw.lower() for sw in stopwords]
-        for ds in datasets:
-            ds_to_analyze = ds.lower() if do_lower else ds
-            if any(sw in ds_to_analyze for sw in stopwords):
-                continue
-            filtered_datasets.append(ds)
-        return filtered_datasets
 
     def __get_raw_data(self):
         data_dirs = os.path.listdir(Model3.MODEL_DATA_DIR)
@@ -261,7 +294,7 @@ class Model3(Model):
             test_texts.append(texts)
             test_ids.append(idx)
 
-        return list(chain(*(train_texts + test_texts)))
+        return list(chain(*(train_texts + test_texts))), train_labels
 
 
 class MapFilter:
@@ -294,6 +327,158 @@ class MapFilter_StopWords(MapFilter):
         super().__init__(filter_f=filter_f)
 
 
+class MapFilter_IntroSSAI(MapFilter):
+    def __init__(self, keywords, tokenize_pattern):
+        connection_words = {'of', 'the', 'with', 'for', 'in', 'to', 'on', 'and', 'up'}
+
+        def map_f(ds):
+            toks_spans = list(tokenize_pattern.finditer(ds))
+            toks = [t.group() for t in toks_spans]
+            start = 0
+            if len(toks) > 3:
+                if toks[1] == 'the':
+                    start = toks_spans[2].span()[0]
+                elif toks[0] not in keywords and  toks[1] in connection_words and len(toks) > 2 and toks[2] in connection_words:
+                    start = toks_spans[3].span()[0]
+                elif toks[0].endswith('ing') and toks[1] in connection_words:
+                    if toks[2] not in connection_words:
+                        start_tok = 2
+                    else:
+                        start_tok = 3
+                    start = toks_spans[start_tok].span()[0]
+                return ds[start:]
+            else:
+                return ds
+
+        super().__init__(map_f=map_f)
+
+
+class MapFilter_IntroWords(MapFilter):
+    def __init__(self):
+        miss_intro_pat = re.compile('^[A-Z][a-z\']+ (?:the|to the) ')
+        map_f = lambda ds: miss_intro_pat.sub('', ds)
+
+        super().__init__(map_f)
+
+class MapFilter_BRLessThanTwoWords(MapFilter):
+    def __init__(self, br_pat, tokenize_pat):
+
+        filter_f = lambda ds: len(tokenize_pat.find_alll(br_pat.sub("", ds))) > 2
+
+        super().__init__(filter_f=filter_f)
+
+class MapFilter_PartialMatchDatasets(MapFilter):
+
+    def __init__(self, dataset, br_pat):
+
+        counter = Counter(dataset)
+        abbrs_used = set()
+        golden_ds_with_br = []
+
+        for ds, _ in counter.most_common():
+            abbr = br_pat.findall(ds)[0]
+
+            if abbr not in abbrs_used:
+                abbrs_used.add(abbr)
+                golden_ds_with_br.append(ds)
+
+        filter_f = lambda ds: not any((ds in ds_) and (ds != ds_) for ds_ in golden_ds_with_br)
+
+        super().__init__(filter_f=filter_f)
+
+
+class MapFilter_TrainCounts(MapFilter):
+
+    def __init__(
+        self,
+        texts,
+        datasets,
+        index,
+        kw,
+        min_train_count,
+        rel_freq_threshold,
+        tokenize_pat,
+    ):
+        # Filter by relative frequency (no parenthesis)
+        # (check the formula in the first cell)
+        tr_counts, data_counts = MapFilter_TrainCounts.get_train_predictions_counts_data(
+            texts,
+            MapFilter_TrainCounts.extend_parentehis(
+                set(datasets)
+            ),
+            index,
+            kw,
+            tokenize_pat,
+        )
+        stats = {}
+
+        for ds, count in Counter(datasets).most_common():
+            stats[ds] = [
+                count,
+                tr_counts[ds],
+                tr_counts[re.sub('[\s]?\(.*\)', '', ds)],
+                data_counts[ds],
+                data_counts[re.sub('[\s]?\(.*\)', '', ds)]
+            ]
+
+        def filter_f(ds):
+            count, tr_count, tr_count_no_br, dcount, dcount_nobr = stats[ds]
+            return (tr_count_no_br > min_train_count) and (dcount_nobr / tr_count_no_br > rel_freq_threshold)
+
+        super().__init__(filter_f=filter_f)
+
+
+
+
+
+    @staticmethod
+    def extend_paranthesis(datasets):
+        # Return each instance of dataset from datasets +
+        # the same instance without parenthesis (if there are some)
+        pat = re.compile('\(.*\)')
+        extended_datasets = []
+        for ds in datasets:
+            ds_no_parenth = pat.sub('', ds).strip()
+            if ds != ds_no_parenth:
+                extended_datasets.append(ds_no_parenth)
+            extended_datasets.append(ds)
+        return extended_datasets
+
+
+    @staticmethod
+    def get_train_predictions_counts_data(texts, datasets, index, kw, tokenize_pat):
+        # Returns N_data and N_total counts dictionary
+        # (check the formulas in the first cell)
+        pred_count = Counter()
+        data_count = Counter()
+        if isinstance(kw, str):
+            kw = [kw]
+
+        for ds in datasets:
+            first_tok, *toks = tokenize_pat.findall(ds)
+            to_search = None
+            for tok in [first_tok] + toks:
+                if index.get(tok):
+                    if to_search is None:
+                        to_search = set(index[tok])
+                    else:
+                        to_search &= index[tok]
+            for doc_idx in to_search:
+                text = texts[doc_idx]
+                if ds in text:
+                    pred_count[ds] += 1
+                    data_count[ds] += int(any(w in text.lower() for w in kw))
+        return pred_count, data_count
+
+
+class MapFilter_BRPatSub(MapFilter):
+    def __init__(self, br_pat):
+
+        map_f = lambda ds: br_pat.sub("", ds)
+
+        super().__init__(map_f=map_f)
+
+
 class Sentencizer:
     def __init__(self, sentencize_fun: Callable, split_by_newline: bool = True) -> None:
         self.sentencize = sentencize_fun
@@ -316,6 +501,17 @@ class DotSplitSentencizer(Sentencizer):
             return [sent.strip() for sent in text.split(".") if sent]
 
         super().__init__(_sent_fun, split_by_newline)
+
+
+
+if __name__=="__main__":
+    input_json_image = sys.argv[1]
+    with open(input_json_image, "r") as f:
+        text = json.load(f)
+
+    predictions = Model3().predict(text)
+
+    print("Model 3 output:", predictions)
 
 
 # Imports from notebook ========================================================
