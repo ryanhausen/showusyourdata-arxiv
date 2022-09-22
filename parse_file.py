@@ -98,8 +98,8 @@ def parse_file(file_path: str) -> Union[Dict[str, str], str]:
 
 
 if __name__ == "__main__":
-    # fname = sys.argv[1]
-    fname = "2010.00311/2010.00311.xml"
+    fname = sys.argv[1]
+    # fname = "2010.00311/2010.00311.xml"
     pf = parse_file(fname)
 
     new_fname = fname.replace("xml", "json")

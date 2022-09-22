@@ -6,6 +6,7 @@
 from collections import defaultdict
 import os
 import json
+from pathlib import Path
 import re
 import sys
 from itertools import chain
@@ -127,7 +128,7 @@ class Model3(Model):
 
         mapfilters = [
             MapFilter_AndThe(),
-            MapFilter_StopWords(Model3.STOPWORDS_PAR),
+            MapFilter_StopWords(Model3.MODEL_STOPWORDS_PAR),
             MapFilter_IntroSSAI(Model3.MODEL_KEYWORDS, Model3.TOKENIZE_PAT),
             MapFilter_IntroWords(),
             MapFilter_BRLessThanTwoWords(Model3.BR_PAT, Model3.TOKENIZE_PAT),
@@ -236,7 +237,7 @@ class Model3(Model):
 
 
     def __get_raw_data(self):
-        data_dirs = os.path.listdir(Model3.MODEL_DATA_DIR)
+        data_dirs = os.listdir(Model3.MODEL_DATA_DIR)
         assert "train" in data_dirs, Model3.DOWNLOAD_ERROR_MESSAGE
         assert "test" in data_dirs, Model3.DOWNLOAD_ERROR_MESSAGE
         assert "train.csv" in data_dirs, Model3.DOWNLOAD_ERROR_MESSAGE
@@ -256,7 +257,7 @@ class Model3(Model):
             cleaned_label,
         ) in df.iterrows():
             if idx not in samples:
-                with open(Model3.MODEL_DATA_DIR / "train" / (idx + ".json")) as fp:
+                with open(os.path.join(Model3.MODEL_DATA_DIR, "train", (idx + ".json"))) as fp:
                     data = json.load(fp)
                 samples[idx] = {
                     "texts": [sec["text"] for sec in data],
@@ -283,7 +284,7 @@ class Model3(Model):
 
         test_texts = []
         test_ids = []
-        for test_file in (Model3.MODEL_DATA_DIR / "test").glob("*.json"):
+        for test_file in Path(os.path.join(Model3.MODEL_DATA_DIR,"test")).glob("*.json"):
             idx = test_file.name.split(".")[0]
             with open(test_file) as fp:
                 data = json.load(fp)
@@ -505,7 +506,8 @@ class DotSplitSentencizer(Sentencizer):
 
 
 if __name__=="__main__":
-    input_json_image = sys.argv[1]
+    # input_json_image = sys.argv[1]
+    input_json_image = "2010.00311/2010.00311.json"
     with open(input_json_image, "r") as f:
         text = json.load(f)
 
