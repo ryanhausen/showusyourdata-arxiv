@@ -6,15 +6,21 @@ on a paper from the arXiv.
 ## Requirements
 
 Python Requirements:
-- python >=3.7
-- requests
-- bs4
+- `python` >= 3.7
+- `pandas` ()
+- `requests`
+- `bs4`
 
 TODO: add other requirements for the ML model/pipeline
 
 Other Requirements
 - latexml (https://math.nist.gov/~BMiller/LaTeXML/)
 
-Or use Docker:
 
-TODO: docker image once ML model/pipeline requirements are known
+TODOS:
+- [x] Add model 3
+- [] Add model 2
+- [] Add model 1 (waiting on weights)
+- [] Make docker image once models are done
+
+docker image once ML model/pipeline requirements are known

@@ -36,6 +36,8 @@ python parse_file.py  "$1/$1.xml"
 
 echo "Classifying with Show Us Your Data classifier"
 
-# TODO: continue here once we have the show us your data model
+python model_3.py "$1/$1.json"
+
+
 
 

@@ -1,6 +1,9 @@
-# added by Ryan
+# added by Ryan, don't include the downloaded kaggle data, but preserve the dir
 kaggle_data/*
 !kaggle_data/README.md
+
+# added by Ryan, don't include the downloaded arxiv paper directories
+[0-9]*[0-9].[0-9]*[0-9]/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
