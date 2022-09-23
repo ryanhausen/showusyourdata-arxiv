@@ -10,6 +10,10 @@ Python Requirements:
 - `pandas` ()
 - `requests`
 - `bs4`
+- `pytorch`
+- `transformers`
+- `nltk`
+- `fuzzywuzzy`
 
 TODO: add other requirements for the ML model/pipeline
 
