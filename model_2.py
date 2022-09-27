@@ -471,13 +471,13 @@ def extract_abbreviation_definition_pairs(file_path=None,
                 try:
                     definition = get_definition(candidate, clean_sentence)
                 except (ValueError, IndexError) as e:
-                    print("{} Omitting candidate {}. Reason: {}".format(i, candidate, e.args[0]))
+                    # print("{} Omitting candidate {}. Reason: {}".format(i, candidate, e.args[0]))
                     omit += 1
                 else:
                     try:
                         definition = select_definition(definition, candidate)
                     except (ValueError, IndexError) as e:
-                        print("{} Omitting definition {} for candidate {}. Reason: {}".format(i, definition, candidate, e.args[0]))
+                        # print("{} Omitting definition {} for candidate {}. Reason: {}".format(i, definition, candidate, e.args[0]))
                         omit += 1
                     else:
                         # Either append the current definition to the list of previous definitions ...
@@ -488,7 +488,8 @@ def extract_abbreviation_definition_pairs(file_path=None,
                             abbrev_map[candidate] = definition
                         written += 1
         except (ValueError, IndexError) as e:
-            print("{} Error processing sentence {}: {}".format(i, sentence, e.args[0]))
+            pass
+            # print("{} Error processing sentence {}: {}".format(i, sentence, e.args[0]))
     # print("{} abbreviations detected and kept ({} omitted)".format(written, omit))
 
     # Return most common definition for each term
