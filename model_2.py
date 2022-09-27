@@ -1,11 +1,29 @@
 # notebook https://github.com/Coleridge-Initiative/rc-kaggle-models/blob/original_submissions/2nd%20Chun%20Ming%20Lee/2nd-place-coleridge-inference-code.ipynb
 # Data files: https://www.kaggle.com/datasets/leecming/robertalabelclassifierrawipcc/download?datasetVersionNumber=1
 
+# High level summary from: https://www.kaggle.com/c/coleridgeinitiative-show-us-the-data/discussion/248296
+# End-to-end dummy example:
+# 1. The LONG-FORM (ACRONYM) string of “Singapore Longitudinal Study on Diabetes
+#    (SLSD)” is found in 64 documents
+# 2. “Singapore Longitudinal Study on Diabetes” is classified by the Transformer
+#    binary classifier to be a dataset with probability 0.99, above the
+#    prediction threshold of 0.9
+# 3. The document frequency of 64 exceeds the search threshold frequency of 50 -
+#    a search of LONG-NAME is conducted across all documents and another 200
+#    documents are found to contain the label
+# 4. For the combined 264 documents, the LONG-FORM is added as a prediction.
+#    Additionally, if any of the 264 documents contains the string ‘ SLSD ‘
+#    (checked against the raw document texts), an additional prediction of the
+#    acronym is added
+
+
+
 from itertools import chain
 import json
 import os
 import re
 import regex
+import sys
 from collections import defaultdict, Counter
 from typing import Dict, List
 
@@ -116,38 +134,64 @@ class Model2(Model):
         high_prob_freq_labels = def_labels
 
 
-        # TODO: Continue here.
-        id_to_pred_mapping = defaultdict(list)
-        for curr_label in long_id_mapping:
-            for curr_id in long_id_mapping[curr_label]:
-                id_to_pred_mapping[curr_id].append(curr_label)
+        sieved_predictions = []
+        for curr_prediction in clean_raw_mapping:
+            match_found = False
 
-        for curr_id, curr_pred_list in id_to_pred_mapping.items():
-            # Sort in following descending priority (a definite training label, doc frequency, length of string)
-            curr_pred_list = sorted(curr_pred_list,
-                                    key=lambda x:(x in def_labels,len(long_id_mapping[x]), 1./len(x)), reverse=True)
-            sieved_pred_list = []
-            for curr_pred in curr_pred_list:
-                match_found = False
-                for other_pred in sieved_pred_list:
-                    # Check if a candidate is too similar to a definite training label prediction
-                    if fuzz.token_set_ratio(curr_pred, other_pred) > Model2.MATCHING_THRESHOLD and curr_pred not in def_labels and other_pred in def_labels:
+            for other_pred in sieved_predictions:
+                # does the current prediction string match any other predicted
+                # string
+                if (fuzz.token_set_ratio(curr_prediction, other_pred) > Model2.MATCHING_THRESHOLD
+                    and curr_prediction not in def_labels
+                    and other_pred in def_labels):
                         match_found = True
                         break
 
-                if not match_found and (len(long_id_mapping[curr_pred]) > Model2.HIGH_FREQ or curr_pred in def_labels
-                                        or re.search('([A-Z][a-z]+ )+(Study|Survey)$', clean_raw_mapping[curr_pred])
-                                        or re.search('(Study|Survey) of', clean_raw_mapping[curr_pred])):
-                    sieved_pred_list.append(curr_pred)
+            if (not match_found
+                or curr_prediction in def_labels
+                or re.search('([A-Z][a-z]+ )+(Study|Survey)$', clean_raw_mapping[curr_prediction])
+                or re.search('(Study|Survey) of', clean_raw_mapping[curr_prediction])
+            ):
+                sieved_predictions.append(curr_prediction)
 
-                    # Add acronym as prediction if present in raw document text
-                    if curr_pred in long_short_mapping and re.search(r' {} '.format(long_short_mapping[curr_pred]),
-                                                                    id_to_raw_text[curr_id]):
-                        sieved_pred_list.append((Model2.clean_text(long_short_mapping[curr_pred])))
 
-            id_to_pred_mapping[curr_id] = set(sieved_pred_list)
 
-        print(id_to_pred_mapping)
+        return sieved_predictions
+
+
+        # TODO: Continue here.
+        # id_to_pred_mapping = defaultdict(list)
+        # for curr_label in long_id_mapping:
+        #     for curr_id in long_id_mapping[curr_label]:
+        #         id_to_pred_mapping[curr_id].append(curr_label)
+
+        # for curr_id, curr_pred_list in id_to_pred_mapping.items():
+        #     # Sort in following descending priority (a definite training label, doc frequency, length of string)
+        #     curr_pred_list = sorted(curr_pred_list,
+        #                             key=lambda x:(x in def_labels,len(long_id_mapping[x]), 1./len(x)), reverse=True)
+        #     sieved_pred_list = []
+        #     for curr_pred in curr_pred_list:
+        #         match_found = False
+        #         for other_pred in sieved_pred_list:
+        #             # Check if a candidate is too similar to a definite training label prediction
+        #             if fuzz.token_set_ratio(curr_pred, other_pred) > Model2.MATCHING_THRESHOLD and curr_pred not in def_labels and other_pred in def_labels:
+        #                 match_found = True
+        #                 break
+
+        #         if not match_found and (len(long_id_mapping[curr_pred]) > Model2.HIGH_FREQ
+        #                                 or curr_pred in def_labels
+        #                                 or re.search('([A-Z][a-z]+ )+(Study|Survey)$', clean_raw_mapping[curr_pred])
+        #                                 or re.search('(Study|Survey) of', clean_raw_mapping[curr_pred])):
+        #             sieved_pred_list.append(curr_pred)
+
+        #             # Add acronym as prediction if present in raw document text
+        #             if curr_pred in long_short_mapping and re.search(r' {} '.format(long_short_mapping[curr_pred]),
+        #                                                             id_to_raw_text[curr_id]):
+        #                 sieved_pred_list.append((Model2.clean_text(long_short_mapping[curr_pred])))
+
+        #     id_to_pred_mapping[curr_id] = set(sieved_pred_list)
+
+        # print(id_to_pred_mapping)
 
 
 
@@ -464,8 +508,17 @@ def extract_abbreviation_definition_pairs(file_path=None,
 # Schwartz-Hearst code =========================================================
 
 if __name__=="__main__":
-    with open("kaggle_data/test/2f392438-e215-4169-bebf-21ac4ff253e1.json") as f:
-        json_text = json.load(f)
+    # with open("kaggle_data/test/2f392438-e215-4169-bebf-21ac4ff253e1.json") as f:
+    #     json_text = json.load(f)
+
+    input_json_image = sys.argv[1]
+    with open(input_json_image, "r") as f:
+        text = json.load(f)
 
     model = Model2(False)
-    output = model.predict(model.preprocess(json_text))
+    predictions = model.predict(model.preprocess(text))
+
+    print(
+        "Model 2 dataset candidates:",
+        predictions if len(predictions) else "None found.",
+    )
