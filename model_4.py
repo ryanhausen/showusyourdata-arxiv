@@ -145,6 +145,7 @@ class Model4(Model):
         #    the first  document is manually set to false -- why?
 
         # df_test_reduct
+        # TODO: continue here: https://www.kaggle.com/code/osciiart/210622-det1-neru-train-govt/notebook?scriptVersionId=66367000#Test-prediction
 
         return super().preprocess(json_text)
 
