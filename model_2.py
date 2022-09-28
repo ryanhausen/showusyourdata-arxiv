@@ -159,7 +159,6 @@ class Model2(Model):
         return sieved_predictions
 
 
-        # TODO: Continue here.
         # id_to_pred_mapping = defaultdict(list)
         # for curr_label in long_id_mapping:
         #     for curr_id in long_id_mapping[curr_label]:
