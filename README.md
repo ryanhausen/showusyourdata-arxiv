@@ -14,6 +14,7 @@ Python Requirements:
 - `transformers`
 - `nltk`
 - `fuzzywuzzy`
+- `tensorflow`
 
 TODO: add other requirements for the ML model/pipeline
 
