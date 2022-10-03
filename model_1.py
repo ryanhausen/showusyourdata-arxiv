@@ -19,6 +19,9 @@ for i in range(len(physical_devices)):
     tf.config.experimental.set_memory_growth(physical_devices[i], True)
 
 from model import Model
+from model_1_SupportQueryDataLoader import SupportQueryDataLoader
+from model_1_MetricLearningModel import MetricLearningModel
+
 
 tf.random.set_seed(42)
 random.seed(42)
@@ -288,6 +291,26 @@ def run_inference(test_dataloader,
                     preds_low_confidence.append(pred)
             cosines.append(all_cosines[k])
     return ids, text_ids, inputs, cosines, preds, preds_low_confidence
+
+
+def find_all_start_end(attention_values):
+    start_offset = {}
+    current_idx = 0
+    is_start = False
+    start_end = []
+    while current_idx < len(attention_values):
+        if attention_values[current_idx] == 1 and is_start is False:
+            start_offset[current_idx] = 0
+            is_start = True
+            start_idx = current_idx
+        elif attention_values[current_idx] == 1 and is_start is True:
+            start_offset[start_idx] += 1
+        elif attention_values[current_idx] == 0 and is_start is True:
+            is_start = False
+        current_idx += 1
+    for k, v in start_offset.items():
+        start_end.append([k, k + v + 1])
+    return start_end
 
 
 def check_valid_low_confidence_pred(pred):
