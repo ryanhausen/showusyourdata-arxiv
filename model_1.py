@@ -1,3 +1,6 @@
+# notebook: https://www.kaggle.com/code/dathudeptrai/biomed-roberta-scibert-base/notebook
+# model summary: https://github.com/Coleridge-Initiative/rc-kaggle-models/blob/main/1st%20ZALO%20FTW/MODEL_SUMMARY.pdf
+
 import gc
 import glob
 import os
@@ -7,21 +10,30 @@ from collections import Counter
 from typing import List
 
 import nltk
+import numpy as np
+import tensorflow as tf
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-stop_words = set(stopwords.words('english'))
-import numpy as np
+from transformers import (
+    AutoConfig,
+    BertTokenizerFast,
+    DistilBertTokenizerFast,
+    RobertaTokenizerFast,
+    TFAutoModel
+)
 
-import tensorflow as tf
 
 physical_devices = tf.config.list_physical_devices("GPU")
 for i in range(len(physical_devices)):
     tf.config.experimental.set_memory_growth(physical_devices[i], True)
 
 from model import Model
-from model_1_SupportQueryDataLoader import SupportQueryDataLoader
+from model_1_QueryDataLoader import QueryDataLoader
 from model_1_MetricLearningModel import MetricLearningModel
+from model_1_SupportQueryDataLoader import SupportQueryDataLoader
 
+
+stop_words = set(stopwords.words('english'))
 
 tf.random.set_seed(42)
 random.seed(42)
@@ -152,11 +164,11 @@ def end2end(pretrained_path, checkpoint_path, test_df, ner_threshold=[0.5, 0.7])
 
     # create tokenizer and dataloader
     if "distil" in pretrained_path:
-        tokenizer = DistilBertTokenizerFast.from_pretrained(f"/kaggle/input/{pretrained_path}/")
+        tokenizer = DistilBertTokenizerFast.from_pretrained(f"model1/{pretrained_path}/")
     elif "roberta" in pretrained_path:
-        tokenizer = RobertaTokenizerFast.from_pretrained(f"/kaggle/input/{pretrained_path}/")
+        tokenizer = RobertaTokenizerFast.from_pretrained(f"model1/{pretrained_path}/")
     elif "scibert" in pretrained_path:
-        tokenizer = BertTokenizerFast.from_pretrained(f"/kaggle/input/{pretrained_path}/", do_lower_case=False)
+        tokenizer = BertTokenizerFast.from_pretrained(f"model1/{pretrained_path}/", do_lower_case=False)
 
     query_dataloader = QueryDataLoader(test_df, batch_size=128)
     test_dataloader = SupportQueryDataLoader(
