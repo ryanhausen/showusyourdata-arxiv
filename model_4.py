@@ -6,7 +6,7 @@
 import re
 from typing import Dict, List
 
-import spacey
+import spacy
 
 
 from model import Model
@@ -143,6 +143,9 @@ class Model4(Model):
         # dup_id are training documents that match
         # dup is a bool that indicates the test text is found in the training text
         #    the first  document is manually set to false -- why?
+        # df_label_train == df_label2
+        # det_train
+
 
         # df_test_reduct
         # TODO: continue here: https://www.kaggle.com/code/osciiart/210622-det1-neru-train-govt/notebook?scriptVersionId=66367000#Test-prediction

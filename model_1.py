@@ -3,14 +3,16 @@
 
 import gc
 import glob
+from itertools import chain
 import os
 import random
 import re
 from collections import Counter
-from typing import List
+from typing import Dict, List
 
 import nltk
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -41,14 +43,30 @@ np.random.seed(42)
 
 class Model4(Model):
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, win_size, sequence_legnth) -> None:
+        self.win_size = win_size
+        self.sequence_length = sequence_legnth
 
 
-    def predict(self, text: str) -> List[str]:
+    def preprocess(self, json_text: List[Dict[str, str]]) -> str:
+        test_df = pd.DataFrame()
+        test_df["id"] = ["-1"]
+        test_df["label"] = ["unknow"] # (sic)
+        test_df["unique_id"] = ["-1"]
+        test_df["text"] = list(chain.from_iterable(list(map(
+            list(map(lambda s: generate_s_e_window_sliding(len(s), self.win_size, int(0.75*self.win_size))),
+            map(lambda s: s["text"].replace("\n", " ").split(), json_text)
+        )))))
+        test_df["full_text"] = list(map(
+            lambda s: s["text"].replace("\n", " ") + " ",
+            json_text
+        ))
 
 
-        accepted_predictions = get_filtered_models_predictions()
+    def predict(self, text: pd.DataFrame) -> List[str]:
+
+
+        accepted_predictions = get_filtered_models_predictions(text)
 
 
 
@@ -73,6 +91,22 @@ def clean_text(txt, lower=True):
 
 def clean_text_v2(txt):
     return re.sub('[^A-Za-z0-9\(\)\[\]]+', ' ', str(txt).lower())
+
+
+def generate_s_e_window_sliding(sample_len, win_size, step_size):
+    start = 0
+    end = win_size
+    s_e = []
+    s_e.append([start, end])
+    while end < sample_len:
+        start += step_size
+        end = start + win_size
+        s_e.append([start, end])
+
+    s_e[-1][0] -= s_e[-1][1] - sample_len
+    s_e[-1][0] = max(s_e[-1][0], 0)
+    s_e[-1][1] = sample_len
+    return s_e
 
 
 def remove_acronym(preds):
@@ -121,10 +155,11 @@ def remove_overlap(preds, preds_low_confidence):
 
 
 # https://www.kaggle.com/code/dathudeptrai/biomed-roberta-scibert-base?scriptVersionId=66513188&cellId=34
-def get_filtered_models_predictions():
+def get_filtered_models_predictions(text):
 
     accepted_preds = []
 
+    test_df = text
 
     PARAMS = [
         ("pretrainedbiomedrobertabase", "coleridgeinitiativebiomedrobertabasev2", [0.5, 0.7], -0.1),
@@ -143,10 +178,11 @@ def get_filtered_models_predictions():
         preds_low_confidence = remove_overlap(preds, preds_low_confidence)
         accepted_preds.extend(get_accepted_preds(preds, preds_low_confidence, cosines, param[3], tokenizer))
 
+    return accepted_preds
+
 
 def end2end(pretrained_path, checkpoint_path, test_df, ner_threshold=[0.5, 0.7]):
-    config = AutoConfig.from_pretrained(
-        f"/kaggle/input/{pretrained_path}/")
+    config = AutoConfig.from_pretrained(f"model1/{pretrained_path}/")
     config.output_attentions = True
     config.output_hidden_states = True
 
@@ -156,7 +192,8 @@ def end2end(pretrained_path, checkpoint_path, test_df, ner_threshold=[0.5, 0.7])
     model.K = 3
 
     # load pre-extract embedding
-    checkpoint_path = f"/kaggle/input/{checkpoint_path}"
+    # checkpoint_path = f"/kaggle/input/{checkpoint_path}"
+    checkpoint_path = f"/model1/{pretrained_path}/embeddings"
     all_support_embeddings = np.load(os.path.join(checkpoint_path, "support_embeddings.npy"))
     all_support_mask_embeddings = np.load(os.path.join(checkpoint_path, "support_mask_embeddings.npy"))
     all_support_nomask_embeddings = np.load(os.path.join(checkpoint_path, "support_nomask_embeddings.npy"))
