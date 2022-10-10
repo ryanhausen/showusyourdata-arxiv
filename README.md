@@ -15,6 +15,7 @@ Python Requirements:
 - `nltk`
 - `fuzzywuzzy`
 - `tensorflow`
+- `scikit-learn`
 
 TODO: add other requirements for the ML model/pipeline
 

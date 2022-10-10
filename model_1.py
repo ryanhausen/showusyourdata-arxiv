@@ -3,7 +3,8 @@
 
 import gc
 import glob
-from itertools import chain
+from itertools import chain, starmap
+import json
 import os
 import random
 import re
@@ -34,14 +35,14 @@ from model_1_QueryDataLoader import QueryDataLoader
 from model_1_MetricLearningModel import MetricLearningModel
 from model_1_SupportQueryDataLoader import SupportQueryDataLoader
 
-
+nltk.download('stopwords')
 stop_words = set(stopwords.words('english'))
 
 tf.random.set_seed(42)
 random.seed(42)
 np.random.seed(42)
 
-class Model4(Model):
+class Model1(Model):
 
     def __init__(self, win_size, sequence_legnth) -> None:
         self.win_size = win_size
@@ -49,18 +50,28 @@ class Model4(Model):
 
 
     def preprocess(self, json_text: List[Dict[str, str]]) -> str:
-        test_df = pd.DataFrame()
-        test_df["id"] = ["-1"]
-        test_df["label"] = ["unknow"] # (sic)
-        test_df["unique_id"] = ["-1"]
-        test_df["text"] = list(chain.from_iterable(list(map(
-            list(map(lambda s: generate_s_e_window_sliding(len(s), self.win_size, int(0.75*self.win_size))),
-            map(lambda s: s["text"].replace("\n", " ").split(), json_text)
-        )))))
-        test_df["full_text"] = list(map(
+        test_df = dict()
+
+        sents = []
+        full_text = list(map(lambda s: s["text"].replace("\n", " ").split(), json_text))
+        for ft in full_text:
+            for start, end in generate_s_e_window_sliding(len(ft), self.win_size, int(0.75*self.win_size)):
+                sents.append(" ".join(ft[start:end]).strip())
+
+        test_df["text"] = sents
+
+        test_df["id"] = ["-1"] * len(sents)
+        test_df["label"] = ["unknow"] * len(sents) # (sic)
+        test_df["unique_id"] = ["-1"] * len(sents)
+
+
+        test_df["full_text"] = list(chain.from_iterable(list(map(
             lambda s: s["text"].replace("\n", " ") + " ",
             json_text
-        ))
+        )))) * len(sents)
+        test_df["group"] = [-1] * len(sents)
+        test_df["title"] = [""] * len(sents)
+        return pd.DataFrame(test_df)
 
 
     def predict(self, text: pd.DataFrame) -> List[str]:
@@ -79,7 +90,7 @@ class Model4(Model):
             predictions
         )))
 
-        return super().predict(text)
+        return predictions
 
 
 def clean_text(txt, lower=True):
@@ -549,4 +560,19 @@ def find_valid_ac(long_form, short_form):
 
 
 if __name__=="__main__":
-    pass
+    with open("kaggle_data/test/2f392438-e215-4169-bebf-21ac4ff253e1.json") as f:
+        text = json.load(f)
+
+    # input_json_image = sys.argv[1]
+    # with open(input_json_image, "r") as f:
+    #     text = json.load(f)
+    WIN_SIZE = 200
+    SEQUENCE_LENGTH = 320
+
+    model = Model1(win_size=WIN_SIZE, sequence_legnth=SEQUENCE_LENGTH)
+    predictions = model.predict(model.preprocess(text))
+
+    print(
+        "Model 2 dataset candidates:",
+        predictions if len(predictions) else "None found.",
+    )
