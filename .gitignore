@@ -1,6 +1,10 @@
 # added by Ryan, don't include the downloaded kaggle data, but preserve the dir
-kaggle_data/*
+kaggle_data/**/*
 !kaggle_data/README.md
+!kaggle_data/model1/pretrainedbiomedrobertabase/*.json
+!kaggle_data/model1/pretrainedbiomedrobertabase/*.txt
+!kaggle_data/model1/scibertbasecased/*.json
+!kaggle_data/model1/scibertbasecased/*.txt
 
 # added by Ryan, don't include the downloaded arxiv paper directories
 [0-9]*[0-9].[0-9]*[0-9]/

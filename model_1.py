@@ -36,6 +36,7 @@ from model_1_MetricLearningModel import MetricLearningModel
 from model_1_SupportQueryDataLoader import SupportQueryDataLoader
 
 nltk.download('stopwords')
+nltk.download('punkt')
 stop_words = set(stopwords.words('english'))
 
 tf.random.set_seed(42)
@@ -64,11 +65,9 @@ class Model1(Model):
         test_df["label"] = ["unknow"] * len(sents) # (sic)
         test_df["unique_id"] = ["-1"] * len(sents)
 
+        full_text = " ".join(list(chain.from_iterable(filter(lambda x: x, full_text))))
 
-        test_df["full_text"] = list(chain.from_iterable(list(map(
-            lambda s: s["text"].replace("\n", " ") + " ",
-            json_text
-        )))) * len(sents)
+        test_df["full_text"] = [full_text] * len(sents)
         test_df["group"] = [-1] * len(sents)
         test_df["title"] = [""] * len(sents)
         return pd.DataFrame(test_df)
@@ -82,7 +81,7 @@ class Model1(Model):
 
 
 
-        predictions = find_all_pred_in_text(text, np.unique(accepted_predictions))
+        predictions = find_all_pred_in_text(text.loc[0,"full_text"], np.unique(accepted_predictions))
 
 
         predictions = np.unique(list(map(
@@ -204,7 +203,7 @@ def end2end(pretrained_path, checkpoint_path, test_df, ner_threshold=[0.5, 0.7])
 
     # load pre-extract embedding
     # checkpoint_path = f"/kaggle/input/{checkpoint_path}"
-    checkpoint_path = f"/model1/{pretrained_path}/embeddings"
+    checkpoint_path = f"model1/{pretrained_path}/embeddings"
     all_support_embeddings = np.load(os.path.join(checkpoint_path, "support_embeddings.npy"))
     all_support_mask_embeddings = np.load(os.path.join(checkpoint_path, "support_mask_embeddings.npy"))
     all_support_nomask_embeddings = np.load(os.path.join(checkpoint_path, "support_nomask_embeddings.npy"))
@@ -440,6 +439,16 @@ def get_accepted_preds(preds, preds_low_confidence, cosines, cosine_threshold, t
     return accepted_preds
 
 
+def check_special_token(string, tokenizer):
+    pad_token = tokenizer.pad_token
+    sep_token = tokenizer.sep_token
+    cls_token = tokenizer.cls_token
+
+    if (pad_token not in string) and (sep_token not in string) and (cls_token not in string):
+        return True
+    return False
+
+
 def calculate_iou(se_0, se_1):
     s_0, e_0 = se_0
     s_1, e_1 = se_1
@@ -573,6 +582,6 @@ if __name__=="__main__":
     predictions = model.predict(model.preprocess(text))
 
     print(
-        "Model 2 dataset candidates:",
+        "Model 1 dataset candidates:",
         predictions if len(predictions) else "None found.",
     )
