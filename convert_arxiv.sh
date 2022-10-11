@@ -40,5 +40,7 @@ python model_3.py "$1/$1.json"
 
 python model_2.py "$1/$1.json"
 
+python model_1.py "$1/$1.json"
+
 
 

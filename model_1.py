@@ -8,6 +8,7 @@ import json
 import os
 import random
 import re
+import sys
 from collections import Counter
 from typing import Dict, List
 
@@ -25,7 +26,11 @@ from transformers import (
     TFAutoModel
 )
 
-
+# https://stackoverflow.com/q/57539273
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+# https://www.tensorflow.org/api_docs/python/tf/keras/utils/disable_interactive_logging
+tf.keras.utils.disable_interactive_logging()
+tf.get_logger().setLevel('ERROR')
 physical_devices = tf.config.list_physical_devices("GPU")
 for i in range(len(physical_devices)):
     tf.config.experimental.set_memory_growth(physical_devices[i], True)
@@ -35,13 +40,35 @@ from model_1_QueryDataLoader import QueryDataLoader
 from model_1_MetricLearningModel import MetricLearningModel
 from model_1_SupportQueryDataLoader import SupportQueryDataLoader
 
-nltk.download('stopwords')
-nltk.download('punkt')
+nltk.download('stopwords', quiet=True)
+nltk.download('punkt', quiet=True)
 stop_words = set(stopwords.words('english'))
 
 tf.random.set_seed(42)
 random.seed(42)
 np.random.seed(42)
+
+# Some of the code is too chatty if you wrap it in this, then it redirect the
+# print statements to a black hole
+#https://stackoverflow.com/a/54955536
+from contextlib import contextmanager
+@contextmanager
+def stdout_redirector():
+    class MyStream:
+        def write(self, msg):
+            pass
+        def flush(self):
+            pass
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    sys.stdout = MyStream()
+    sys.stderr = MyStream()
+
+    try:
+        yield
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
 
 class Model1(Model):
 
@@ -569,17 +596,19 @@ def find_valid_ac(long_form, short_form):
 
 
 if __name__=="__main__":
-    with open("kaggle_data/test/2f392438-e215-4169-bebf-21ac4ff253e1.json") as f:
-        text = json.load(f)
-
-    # input_json_image = sys.argv[1]
-    # with open(input_json_image, "r") as f:
+    # with open("kaggle_data/test/2f392438-e215-4169-bebf-21ac4ff253e1.json") as f:
     #     text = json.load(f)
+
+    input_json_image = sys.argv[1]
+    with open(input_json_image, "r") as f:
+        text = json.load(f)
     WIN_SIZE = 200
     SEQUENCE_LENGTH = 320
 
     model = Model1(win_size=WIN_SIZE, sequence_legnth=SEQUENCE_LENGTH)
-    predictions = model.predict(model.preprocess(text))
+
+    with stdout_redirector():
+        predictions = model.predict(model.preprocess(text))
 
     print(
         "Model 1 dataset candidates:",

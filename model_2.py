@@ -36,6 +36,24 @@ from fuzzywuzzy import fuzz
 
 from model import Model
 
+# Some of the code is too chatty if you wrap it in this, then it redirect the
+# print statements to a black hole
+#https://stackoverflow.com/a/54955536
+from contextlib import contextmanager
+@contextmanager
+def stdout_redirector():
+    class MyStream:
+        def write(self, msg):
+            pass
+        def flush(self):
+            pass
+    old_stdout = sys.stdout
+    sys.stdout = MyStream()
+    try:
+        yield
+    finally:
+        sys.stdout = old_stdout
+
 
 class Model2(Model):
     PRETRAINED_DIR = "model2/classifier"
@@ -54,7 +72,7 @@ class Model2(Model):
         self.init_params(use_gpu)
 
     def init_params(self, use_gpu:bool):
-        nltk.download('punkt')
+        nltk.download('punkt', quiet=True)
         self.use_gpu = use_gpu
 
         if use_gpu:
@@ -515,8 +533,9 @@ if __name__=="__main__":
     with open(input_json_image, "r") as f:
         text = json.load(f)
 
-    model = Model2(False)
-    predictions = model.predict(model.preprocess(text))
+    with stdout_redirector():
+        model = Model2(False)
+        predictions = model.predict(model.preprocess(text))
 
     print(
         "Model 2 dataset candidates:",
